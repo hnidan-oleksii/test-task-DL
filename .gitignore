@@ -1,0 +1,8 @@
+*/.ipynb_checkpoints/*
+**/data
+**/raw_data
+*/__pycache__/*
+*/model/*
+*/best_model/*
+
+!/task1/data
