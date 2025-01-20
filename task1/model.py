@@ -202,61 +202,50 @@ class DistilBertMountainTokenClassifier:
         return avg_loss, accuracy
 
     @torch.no_grad()
-    def inference(self, file_path):
-        """Run inference with batching and progress bar."""
-        file_path = Path(file_path)
-        if not file_path.exists():
-            raise FileNotFoundError(f"Dataset file not found: {file_path}")
+    def inference(self, texts):
+        """
+        Run inference on a list of texts to detect mountain names.
 
-        with open(file_path, 'r') as f:
-            texts = f.read().strip().split('\n')
+        Args:
+            texts (list of str): A list of input sentences.
 
+        Returns:
+            list of dict: Each dictionary contains the tokenized text, corresponding labels, 
+                          and word-label pairs.
+        """
         self.model.eval()
-        inputs = self.tokenizer(
-            texts,
-            is_split_into_words=True,
-            padding=True,
-            truncation=True,
-            max_length=self.max_length,
-            return_tensors="pt",
-            return_offsets_mapping=True
-        )
-        offset_mapping = inputs.pop("offset_mapping")
-        inputs = {k: v.to(self.device) for k, v in inputs.items()}
+        results = []
 
-        # get predictions
-        outputs = self.model(**inputs)
-        predictions = torch.argmax(outputs.logits, dim=2)
+        for text in texts:
+            words = text.split()
+            tokenized_input = self.tokenizer(
+                words,
+                padding=True,
+                truncation=True,
+                return_tensors="pt",
+                is_split_into_words=True
+            ).to(self.device)
 
-        # convert predictions to tokens
-        pred_labels = [self.id2label[p.item()] for p in predictions[0]]
-        tokens = self.tokenizer.convert_ids_to_tokens(inputs['input_ids'][0])
+            # predict the label for each token and get word ids
+            predictions = torch.argmax(self.model(**tokenized_input).logits, dim=2)[0].tolist()
+            word_ids = tokenized_input.word_ids()
 
-        # extract mountain names
-        mountains = []
-        current_mountain = []
+            # for word-label pairs
+            word_label_list = []
+            # for avoidance of duplication of pairs because of BPE
+            seen_word_ids = set()
+            for idx, word_id in enumerate(word_ids):
+                if word_id is not None and word_id not in seen_word_ids:
+                    word_label_list.append((words[word_id], self.id2label[predictions[idx]]))
+                    seen_word_ids.add(word_id)
 
-        for token, label, offset in zip(tokens, pred_labels, offset_mapping[0]):
-            if label == 'B-MOUNTAIN':
-                # if we were already building a mountain name, save it
-                if current_mountain:
-                    mountains.append(''.join(current_mountain))
-                    current_mountain = []
-                # start new mountain name
-                current_mountain.append(texts[offset[0]:offset[1]])
-            elif label == 'I-MOUNTAIN' and current_mountain:
-                current_mountain.append(texts[offset[0]:offset[1]])
-            elif label == 'O' and current_mountain:
-                mountains.append(''.join(current_mountain))
-                current_mountain = []
+            results.append({
+                'text': words,
+                'labels': [label for _, label in word_label_list],
+                'word_label': word_label_list,
+            })
 
-        if current_mountain:
-            mountains.append(''.join(current_mountain))
-
-        return {
-            'mountains': mountains,
-            'tagged_sequence': list(zip(tokens, pred_labels))
-        }
+        return results
 
     def save_model(self, dir_path):
         '''Save the model and tokenizer to the dir_path directory'''
