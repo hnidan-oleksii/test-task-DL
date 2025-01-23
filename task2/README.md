@@ -89,7 +89,7 @@ For an interactive demonstration of the image matching algorithm, refer to the `
 
 ### 1. Data
 
-The solution used the dataset from [Kaggle](https://www.kaggle.com/code/denysv/mountain-ner).
+The solution used the dataset from [Kaggle](https://www.kaggle.com/datasets/isaienkov/deforestation-in-ukraine).
 
 Images after downscaling can be accessed by the [link](https://drive.google.com/drive/folders/1aRLJG6o4L209Aw_58FEGNJ7NGOBnUiW0?usp=sharing)
 
